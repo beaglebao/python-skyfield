@@ -31,7 +31,11 @@ def load(match_function):
     with api.load.open(url) as f:
         for line in gzip.GzipFile(fileobj=f):
             if match_function(line):
-                yield parse(line)
+                try:
+                    yield parse(line)
+                except:
+                    print(line)
+                    raise
 
 def get(which):
     """Return a single star, or a list of stars, from the Hipparcos catalog.

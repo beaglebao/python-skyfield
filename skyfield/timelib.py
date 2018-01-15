@@ -47,6 +47,50 @@ def _to_array(value):
 
 tt_minus_tai = array(32.184 / DAY_S)
 
+from functools import update_wrapper
+
+class reify(object):
+    """ Use as a class method decorator.  It operates almost exactly like the
+    Python ``@property`` decorator, but it puts the result of the method it
+    decorates into the instance dict after the first call, effectively
+    replacing the function it decorates with an instance variable.  It is, in
+    Python parlance, a non-data descriptor.  The following is an example and
+    its usage:
+
+    .. doctest::
+
+        >>> from pyramid.decorator import reify
+
+        >>> class Foo(object):
+        ...     @reify
+        ...     def jammy(self):
+        ...         print('jammy called')
+        ...         return 1
+
+        >>> f = Foo()
+        >>> v = f.jammy
+        jammy called
+        >>> print(v)
+        1
+        >>> f.jammy
+        1
+        >>> # jammy func not called the second time; it replaced itself with 1
+        >>> # Note: reassignment is possible
+        >>> f.jammy = 2
+        >>> f.jammy
+        2
+    """
+    def __init__(self, wrapped):
+        self.wrapped = wrapped
+        update_wrapper(self, wrapped)
+
+    def __get__(self, inst, objtype=None):
+        if inst is None:
+            return self
+        val = self.wrapped(inst)
+        setattr(inst, self.wrapped.__name__, val)
+        return val
+
 class Timescale(object):
     """The data necessary to express dates in different timescales.
 
@@ -458,6 +502,11 @@ class Time(object):
         """Return TT as a tuple (year, month, day, hour, minute, second)."""
         return calendar_tuple(self.tt)
 
+    @reify
+    def tdb(self):
+        tt = self.tt
+        return tt + tdb_minus_tt(tt) / DAY_S
+
     def __getattr__(self, name):
 
         # Cache of several expensive functions of time.
@@ -497,11 +546,6 @@ class Time(object):
             utc = array(utc) if self.shape else utc
             self.utc = utc = utc
             return utc
-
-        if name == 'tdb':
-            tt = self.tt
-            self.tdb = tdb = tt + tdb_minus_tt(tt) / DAY_S
-            return tdb
 
         if name == 'ut1':
             self.ut1 = ut1 = self.tt - self.delta_t / DAY_S
